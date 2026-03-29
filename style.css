@@ -185,8 +185,54 @@ body {
 }
 .btn-text.hidden { display: none; }
 
-.tip-text { margin-top: 12px; font-size: 0.8rem; color: var(--text-secondary); text-align: center; display: none; }
-.tip-text.show { display: block; }
+/* Top Right Tools (Measurement) */
+.floating-tools {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    pointer-events: auto;
+}
+
+.circular-btn {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 1.3rem;
+    cursor: pointer;
+    border: 1px solid var(--glass-border);
+    background: var(--glass-bg);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    transition: transform 0.2s, background 0.2s;
+    outline: none;
+}
+.circular-btn:active { transform: scale(0.95); }
+.circular-btn.active {
+    background: var(--apple-blue);
+    border-color: var(--apple-blue);
+    color: white;
+}
+
+.measure-tips {
+    margin-top: 12px;
+    padding: 12px 16px;
+    text-align: right;
+    transition: opacity 0.3s, transform 0.3s;
+}
+.measure-tips.hidden {
+    opacity: 0;
+    pointer-events: none;
+    transform: translateX(20px);
+}
+
+.tip-text { margin-top: 8px; font-size: 0.82rem; color: var(--text-secondary); text-align: right; }
 
 /* CSS2D Label styles rendering IN 3D SPACE */
 .measurement-label {

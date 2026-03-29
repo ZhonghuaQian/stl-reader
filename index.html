@@ -34,11 +34,11 @@
 
         <div id="side-panel" class="side-panel glass-card hidden">
             <div class="panel-header" id="panel-toggle">
-                <h3>📐 数据与控制</h3>
-                <span id="chevron" class="chevron">▼</span>
+                <h3>📐 尺寸与边界</h3>
+                <span id="chevron" class="chevron" style="transform: rotate(180deg)">▼</span>
             </div>
             
-            <div id="panel-content" class="panel-content">
+            <div id="panel-content" class="panel-content" style="display: none;">
                 <div class="info-row">
                     <span class="label">长度 (X):</span>
                     <span id="val-x" class="value">- mm</span>
@@ -51,10 +51,13 @@
                     <span class="label">高度 (Z):</span>
                     <span id="val-z" class="value">- mm</span>
                 </div>
-                <div class="divider"></div>
-                <h3>📏 精确测量 (Raycast)</h3>
-                <button id="btn-measure" class="btn-secondary">开启距离测量</button>
-                <p id="measure-tip" class="tip-text">请在模型表面任意点击两点</p>
+            </div>
+        </div>
+
+        <div id="measure-tools" class="floating-tools">
+            <button id="btn-measure" class="circular-btn" title="精确测量">📏</button>
+            <div id="measure-tips" class="measure-tips glass-card hidden">
+                <p id="measure-tip" class="tip-text">请在表面点击任意两点</p>
                 <button id="btn-clear" class="btn-text hidden">清除测量线</button>
             </div>
         </div>
@@ -127,7 +130,7 @@ gridHelper.position.y = -0.1;
 scene.add(gridHelper);
 
 // Panel Toggle Logic
-let panelExpanded = true;
+let panelExpanded = false;
 panelToggle.addEventListener('click', () => {
     panelExpanded = !panelExpanded;
     if(panelExpanded) {
@@ -309,10 +312,10 @@ function handleNewModel(meshObject) {
     document.getElementById('val-z').textContent = size.z.toFixed(2) + ' mm';
     sidePanelUI.classList.remove('hidden');
     
-    // Expand panel automatically when a new model loads
-    panelExpanded = true;
-    panelContent.style.display = 'block';
-    chevron.style.transform = 'rotate(0deg)';
+    // Collapse panel automatically when a new model loads
+    panelExpanded = false;
+    panelContent.style.display = 'none';
+    chevron.style.transform = 'rotate(180deg)';
 }
 
 // ---- Raycaster Measurement Tool ----
@@ -326,21 +329,19 @@ const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
 
 const btnMeasure = document.getElementById('btn-measure');
-const measureTip = document.getElementById('measure-tip');
+const measureTipsUI = document.getElementById('measure-tips');
 const btnClear = document.getElementById('btn-clear');
 
 btnMeasure.addEventListener('click', () => {
     measureMode = !measureMode;
     if (measureMode) {
         btnMeasure.classList.add('active');
-        btnMeasure.textContent = '完成并退出测量';
-        measureTip.classList.add('show');
+        measureTipsUI.classList.remove('hidden');
         renderer.domElement.style.cursor = 'crosshair';
         controls.enabled = false;
     } else {
         btnMeasure.classList.remove('active');
-        btnMeasure.textContent = '开启距离测量';
-        measureTip.classList.remove('show');
+        measureTipsUI.classList.add('hidden');
         renderer.domElement.style.cursor = 'default';
         controls.enabled = true;
         clickState = 0;
