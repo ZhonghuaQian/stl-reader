@@ -59,23 +59,65 @@ body {
     pointer-events: none; 
 }
 
+/* Desktop nav: centered pill shape */
 .top-nav {
     position: absolute;
     top: 20px;
     left: 50%;
     transform: translateX(-50%);
     width: 90%;
-    max-width: 600px;
-    padding: 16px 24px;
+    max-width: 580px;
+    padding: 14px 20px;
     display: flex;
     justify-content: space-between;
     align-items: center;
     pointer-events: auto;
+    /* Reserve space for the right-side circular button (48px + 20px margin + gap) */
+    padding-right: 20px;
 }
 
 .top-nav h2 {
-    font-size: 1.2rem;
+    font-size: 1.1rem;
     font-weight: 600;
+    white-space: nowrap;
+    margin-right: 12px;
+    flex-shrink: 0;
+}
+
+/* Mobile: stack nav to left edge, leaving right side free for tool buttons */
+@media (max-width: 500px) {
+    .top-nav {
+        top: 16px;
+        left: 16px;
+        right: 80px;   /* leave room for the circular button on the right */
+        width: auto;
+        transform: none;
+        max-width: none;
+        padding: 10px 14px;
+        gap: 10px;
+    }
+
+    .top-nav h2 {
+        font-size: 0.95rem;
+    }
+
+    .btn-primary {
+        padding: 8px 12px;
+        font-size: 0.82rem;
+        white-space: nowrap;
+    }
+
+    .floating-tools {
+        top: 16px;
+        right: 16px;
+    }
+
+    .side-panel {
+        bottom: 20px;
+        left: 12px;
+        width: calc(100% - 24px);
+        max-width: none;
+    }
 }
 
 /* Side Panel Updates: Collapsible Structure */
