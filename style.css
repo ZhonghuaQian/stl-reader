@@ -19,8 +19,8 @@
 body {
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     color: var(--text-primary);
-    overflow: hidden; /* Prevent scrolling */
-    background-color: #f5f5f7; /* Soft grey background for 3D perspective */
+    overflow: hidden; 
+    background-color: #f5f5f7; 
 }
 
 /* 3D Container */
@@ -35,7 +35,7 @@ body {
 
 #css2d-container {
     z-index: 2;
-    pointer-events: none; /* Let clicks pass through to the 3D canvas */
+    pointer-events: none; 
 }
 
 /* Glassmorphism Helper */
@@ -56,7 +56,7 @@ body {
     width: 100%;
     height: 100%;
     z-index: 10;
-    pointer-events: none; /* Only cards inside should intercept clicks */
+    pointer-events: none; 
 }
 
 .top-nav {
@@ -78,15 +78,16 @@ body {
     font-weight: 600;
 }
 
+/* Side Panel Updates: Collapsible Structure */
 .side-panel {
     position: absolute;
     bottom: 30px;
     left: 20px;
     width: calc(100% - 40px);
     max-width: 320px;
-    padding: 24px;
     pointer-events: auto;
     transition: opacity 0.3s ease, transform 0.3s ease;
+    overflow: hidden;
 }
 
 .side-panel.hidden {
@@ -95,6 +96,36 @@ body {
     transform: translateY(20px);
 }
 
+.panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 24px;
+    cursor: pointer;
+    background: rgba(255,255,255,0.4);
+    border-bottom: 1px solid transparent;
+}
+.panel-header:hover { background: rgba(255,255,255,0.6); }
+
+.panel-header h3 {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #1d1d1f;
+    margin: 0;
+}
+
+.chevron {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    transition: transform 0.3s ease;
+}
+
+.panel-content {
+    padding: 0 24px 24px 24px;
+    margin-top: 16px; 
+}
+
+/* Inner Text Elements */
 .side-panel h3 {
     font-size: 0.95rem;
     font-weight: 600;
@@ -159,33 +190,99 @@ body {
 
 /* CSS2D Label styles rendering IN 3D SPACE */
 .measurement-label {
-    background: rgba(0,0,0,0.8);
-    color: #fff;
-    padding: 4px 10px;
-    border-radius: 8px;
+    background: rgba(255,255,255,0.85); /* Apple-like light tooltip */
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(0,0,0,0.1);
+    color: var(--text-primary);
+    padding: 8px 12px;
+    border-radius: 10px;
     font-size: 12px;
     font-weight: bold;
     font-family: monospace;
     pointer-events: none;
     white-space: nowrap;
-    transform: translate(-50%, -50%); /* Center the tag */
+    transform: translate(-50%, -50%); 
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    text-align: left;
 }
 
-/* Loader */
+.measurement-label.multi-line .main-dist {
+    font-size: 14px;
+    color: var(--apple-blue);
+    margin-bottom: 4px;
+    border-bottom: 1px solid rgba(0,0,0,0.1);
+    padding-bottom: 4px;
+}
+
+.measurement-label.multi-line .sub-dist {
+    color: var(--text-secondary);
+    font-size: 11px;
+    line-height: 1.4;
+}
+
+/* Loader Screen & Mario Kart Animation */
 .loader-bg {
     position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
-    background: rgba(255,255,255,0.8);
-    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    background: rgba(255,255,255,0.85); /* Frosty background to focus on Mario */
+    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
     z-index: 999; display: flex; flex-direction: column; justify-content: center; align-items: center;
-    transition: opacity 0.3s;
+    transition: opacity 0.5s ease-out;
 }
 .loader-bg.hidden { opacity: 0; pointer-events: none; }
-.spinner {
-    width: 40px; height: 40px;
-    border: 4px solid rgba(0,113,227,0.2);
-    border-top: 4px solid var(--apple-blue);
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
+
+.mario-container {
+    position: relative;
+    width: 200px;
+    height: 120px;
     margin-bottom: 16px;
+    overflow: hidden; 
+    border-radius: 12px;
 }
-@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+.road {
+    position: absolute;
+    bottom: 10px;
+    width: 400px; /* Double width to support seamless scrolling */
+    height: 12px;
+    background: repeating-linear-gradient(
+        -45deg,
+        #ffd700, #ffd700 20px,
+        #333 20px, #333 40px
+    );
+    animation: roadScroll 0.8s linear infinite;
+    border-radius: 6px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+}
+@keyframes roadScroll {
+    0% { transform: translateX(0); }
+    100% { transform: translateX(-56.5px); } /* Match the repeating gradient math perfectly */
+}
+
+.mario-kart {
+    width: 90px;
+    position: absolute;
+    bottom: 20px;
+    left: 55px; /* Stay fixed in the center while road moves */
+    animation: kartBump 0.25s infinite alternate ease-in-out, driveIn 1s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    filter: drop-shadow(0px 8px 8px rgba(0,0,0,0.3));
+}
+@keyframes kartBump {
+    0% { transform: translateY(0px) rotate(-3deg); }
+    100% { transform: translateY(-10px) rotate(3deg); }
+}
+@keyframes driveIn {
+    0% { left: -100px; transform: scale(0.5); }
+    100% { left: 55px; transform: scale(1); }
+}
+
+.progress-text {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: var(--apple-blue);
+    font-family: 'Inter', monospace;
+    margin-bottom: 6px;
+}
+#loader-text {
+    color: var(--text-secondary);
+    font-weight: 500;
+}

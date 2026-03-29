@@ -2,12 +2,11 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <!-- Prevents scaling on mobile, enforcing app-like feel -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
-    <title>Pro STL Viewer (Web 3D)</title>
+    <title>Pro STL & STP Viewer</title>
     <link rel="stylesheet" href="style.css">
     
-    <!-- ES Module Import Map for Three.js (No NPM required, loads from fast CDN) -->
+    <!-- ES Module Import Map for Three.js -->
     <script type="importmap">
         {
             "imports": {
@@ -16,54 +15,60 @@
             }
         }
     </script>
+    
+    <!-- OpenCASCADE WebAssembly library for STEP parsing -->
+    <script src="https://cdn.jsdelivr.net/npm/occt-import-js@0.0.12/dist/occt-import-js.js"></script>
 </head>
 <body>
-    <!-- 3D Graphics Canvas Area -->
     <div id="canvas-container"></div>
-    <!-- CSS2D Object Area for floating text elements in 3D -->
     <div id="css2d-container"></div>
 
-    <!-- Apple-style Glassmorphism UI Overlay -->
     <div class="ui-overlay">
         <div class="top-nav glass-card">
             <h2>3D Model Viewer</h2>
-            <label for="file-upload" class="btn-primary">
-                + 选择 STL 图纸
+            <label for="file-upload" class="btn-primary" id="btn-upload-lbl">
+                + 选择 图纸 (STL/STP)
             </label>
-            <input id="file-upload" type="file" accept=".stl" style="display: none;" />
+            <input id="file-upload" type="file" accept=".stl,.stp,.step" style="display: none;" />
         </div>
 
         <div id="side-panel" class="side-panel glass-card hidden">
-            <h3>📐 尺寸与边界 (Bounding Box)</h3>
-            <div class="info-row">
-                <span class="label">长度 (X):</span>
-                <span id="val-x" class="value">- mm</span>
+            <div class="panel-header" id="panel-toggle">
+                <h3>📐 数据与控制</h3>
+                <span id="chevron" class="chevron">▼</span>
             </div>
-            <div class="info-row">
-                <span class="label">宽度 (Y):</span>
-                <span id="val-y" class="value">- mm</span>
+            
+            <div id="panel-content" class="panel-content">
+                <div class="info-row">
+                    <span class="label">长度 (X):</span>
+                    <span id="val-x" class="value">- mm</span>
+                </div>
+                <div class="info-row">
+                    <span class="label">宽度 (Y):</span>
+                    <span id="val-y" class="value">- mm</span>
+                </div>
+                <div class="info-row">
+                    <span class="label">高度 (Z):</span>
+                    <span id="val-z" class="value">- mm</span>
+                </div>
+                <div class="divider"></div>
+                <h3>📏 精确测量 (Raycast)</h3>
+                <button id="btn-measure" class="btn-secondary">开启距离测量</button>
+                <p id="measure-tip" class="tip-text">请在模型表面任意点击两点</p>
+                <button id="btn-clear" class="btn-text hidden">清除测量线</button>
             </div>
-            <div class="info-row">
-                <span class="label">高度 (Z):</span>
-                <span id="val-z" class="value">- mm</span>
-            </div>
-
-            <div class="divider"></div>
-
-            <h3>📏 精确测量 (Raycast)</h3>
-            <button id="btn-measure" class="btn-secondary">开启距离测量</button>
-            <p id="measure-tip" class="tip-text">请在模型表面任意点击两点</p>
-            <button id="btn-clear" class="btn-text hidden">清除测量线</button>
         </div>
     </div>
 
-    <!-- Fullscreen Loading Spinner -->
     <div id="loader" class="loader-bg hidden">
-        <div class="spinner"></div>
-        <p>正在极速渲染网格面片...</p>
+        <div class="mario-container">
+            <div class="road"></div>
+            <img src="mario.png" class="mario-kart" alt="Mario" />
+        </div>
+        <div id="loader-percent" class="progress-text">🏁</div>
+        <p id="loader-text">马里奥正在为您极速跑图传输中...</p>
     </div>
 
-    <!-- Application Logic -->
     <script type="module">
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
@@ -74,15 +79,19 @@ import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer
 const container = document.getElementById('canvas-container');
 const css2dContainer = document.getElementById('css2d-container');
 const loaderUI = document.getElementById('loader');
+const loaderText = document.getElementById('loader-text');
 const sidePanelUI = document.getElementById('side-panel');
+const panelContent = document.getElementById('panel-content');
+const chevron = document.getElementById('chevron');
+const panelToggle = document.getElementById('panel-toggle');
 
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0xf5f5f7); // Apple grey
+scene.background = new THREE.Color(0xf5f5f7); 
 
 const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 1, 10000);
 camera.position.set(200, 200, 200);
 
-const renderer = new THREE.WebGLRenderer({ antialias: true });
+const renderer = new THREE.WebGLRenderer({ antialias: true, logarithmicDepthBuffer: true });
 renderer.setPixelRatio(window.devicePixelRatio);
 renderer.setSize(window.innerWidth, window.innerHeight);
 container.appendChild(renderer.domElement);
@@ -91,7 +100,7 @@ const labelRenderer = new CSS2DRenderer();
 labelRenderer.setSize(window.innerWidth, window.innerHeight);
 labelRenderer.domElement.style.position = 'absolute';
 labelRenderer.domElement.style.top = '0px';
-labelRenderer.domElement.style.pointerEvents = 'none'; // Critical for clicking through to 3D mesh
+labelRenderer.domElement.style.pointerEvents = 'none'; 
 css2dContainer.appendChild(labelRenderer.domElement);
 
 const controls = new OrbitControls(camera, renderer.domElement);
@@ -103,9 +112,10 @@ const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.8);
 hemiLight.position.set(0, 200, 0);
 scene.add(hemiLight);
 
-const dirLight = new THREE.DirectionalLight(0xffffff, 0.5);
-dirLight.position.set(100, 100, 50);
-scene.add(dirLight);
+// SOLUTION FOR LIGHTING: Attach directional light to the camera so it always looks at the model
+const dirLight = new THREE.DirectionalLight(0xffffff, 0.6);
+camera.add(dirLight); // Attaching to camera
+scene.add(camera);    // Adding camera to scene is required for attached lights to work
 
 // ---- Grid & Object State ----
 let currentMesh = null;
@@ -116,7 +126,19 @@ const gridHelper = new THREE.GridHelper(500, 50, 0x0071e3, 0xd0d0d0);
 gridHelper.position.y = -0.1;
 scene.add(gridHelper);
 
-// Handle Resize
+// Panel Toggle Logic
+let panelExpanded = true;
+panelToggle.addEventListener('click', () => {
+    panelExpanded = !panelExpanded;
+    if(panelExpanded) {
+        panelContent.style.display = 'block';
+        chevron.style.transform = 'rotate(0deg)';
+    } else {
+        panelContent.style.display = 'none';
+        chevron.style.transform = 'rotate(180deg)';
+    }
+});
+
 window.addEventListener('resize', () => {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
@@ -124,7 +146,6 @@ window.addEventListener('resize', () => {
     labelRenderer.setSize(window.innerWidth, window.innerHeight);
 });
 
-// Render Loop
 function animate() {
     requestAnimationFrame(animate);
     controls.update();
@@ -133,69 +154,166 @@ function animate() {
 }
 animate();
 
-// ---- STL File Loading Logic ----
-document.getElementById('file-upload').addEventListener('change', (event) => {
+// ---- Initialize occt-import-js ----
+let occtPromise = null;
+function getOcct() {
+    if(!occtPromise) {
+        // Load WASM from CDN
+        occtPromise = occtimportjs({
+            locateFile: (file) => `https://cdn.jsdelivr.net/npm/occt-import-js@0.0.12/dist/${file}`
+        });
+    }
+    return occtPromise;
+}
+
+// Convert OCCT Result to Three.js Mesh
+function createMeshFromOcctResult(result) {
+    const geometries = [];
+    // The result object contains meshes
+    for (let mesh of result.meshes) {
+        let geometry = new THREE.BufferGeometry();
+        
+        // Vertices
+        geometry.setAttribute('position', new THREE.Float32BufferAttribute(mesh.attributes.position.array, 3));
+        
+        // Normals (if any)
+        if (mesh.attributes.normal) {
+            geometry.setAttribute('normal', new THREE.Float32BufferAttribute(mesh.attributes.normal.array, 3));
+        } else {
+            geometry.computeVertexNormals();
+        }
+        
+        // Indices
+        geometry.setIndex(new THREE.Uint32BufferAttribute(mesh.index.array, 1));
+        
+        geometries.push(geometry);
+    }
+
+    if (geometries.length === 0) throw new Error("STEP 解析未产生任何网格表面数据");
+
+    // Merge multiple geometries if assembly
+    // Since we don't import BufferGeometryUtils to save bandwidth, we group them
+    const group = new THREE.Group();
+    const material = new THREE.MeshStandardMaterial({ 
+        color: 0xffffff, roughness: 0.4, metalness: 0.2, side: THREE.DoubleSide
+    });
+    
+    geometries.forEach(geo => {
+        group.add(new THREE.Mesh(geo, material));
+    });
+
+    return group;
+}
+
+// ---- File Loading Logic ----
+document.getElementById('file-upload').addEventListener('change', async (event) => {
     const file = event.target.files[0];
     if (!file) return;
 
-    // Show loading
+    const extension = file.name.split('.').pop().toLowerCase();
+    const loaderPercent = document.getElementById('loader-percent');
+    
     loaderUI.classList.remove('hidden');
+    loaderPercent.textContent = '🏁 Ready';
+    loaderText.textContent = '正在准备跑道...';
 
-    const reader = new FileReader();
-    reader.onload = function(e) {
-        const arrayBuffer = e.target.result;
-        try {
+    // YIELD TO BROWSER RENDER THREAD: Ensures Mario Animation paints before JS thread freezes!
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    try {
+        const arrayBuffer = await file.arrayBuffer();
+
+        if (extension === 'stl') {
+            loaderPercent.textContent = '🚀';
+            loaderText.textContent = "正在利用显卡极速解算 STL 多边形网格...";
+            await new Promise(resolve => setTimeout(resolve, 50)); // Force text paint
+            
             const loader = new STLLoader();
             const geometry = loader.parse(arrayBuffer);
             
-            // Clean up previous model
-            if (currentMesh) {
-                scene.remove(currentMesh);
-                currentMesh.geometry.dispose();
-                currentMesh.material.dispose();
-                clearMeasurements();
+            const material = new THREE.MeshStandardMaterial({ 
+                color: 0xffffff, roughness: 0.4, metalness: 0.2, side: THREE.DoubleSide
+            });
+            const mesh = new THREE.Mesh(geometry, material);
+            handleNewModel(mesh);
+            
+        } else if (extension === 'stp' || extension === 'step') {
+            loaderPercent.textContent = '🔥';
+            loaderText.textContent = "引擎轰鸣中！疯狂解算 STP 复杂工业曲面中 (预计 5~20 秒)...";
+            await new Promise(resolve => setTimeout(resolve, 50)); // Force text paint
+            
+            const fileUint8Array = new Uint8Array(arrayBuffer);
+            
+            const occt = await getOcct();
+            
+            // Invoke the WASM CAD kernel (expects exactly 1 argument for this version)
+            const result = occt.ReadStepFile(fileUint8Array);
+            
+            if(!result || !result.success) {
+                throw new Error("STP 内核方程解算失败");
             }
 
-            // Material: Apple Minimalist Style (Matte White/Grey)
-            const material = new THREE.MeshStandardMaterial({ 
-                color: 0xffffff, 
-                roughness: 0.5,
-                metalness: 0.1,
-                side: THREE.DoubleSide
-            });
-
-            currentMesh = new THREE.Mesh(geometry, material);
+            const meshGroup = createMeshFromOcctResult(result);
+            handleNewModel(meshGroup);
             
-            // Center geometry and update math values
-            geometry.center();
-            geometry.computeBoundingBox();
-            const box = geometry.boundingBox;
-            const size = new THREE.Vector3();
-            box.getSize(size);
-            
-            // Auto scale / position camera relative to object size
-            const maxDim = Math.max(size.x, size.y, size.z);
-            camera.position.set(maxDim * 1.5, maxDim * 1.5, maxDim * 1.5);
-            camera.lookAt(0, 0, 0);
-            controls.target.set(0, 0, 0);
-            gridHelper.scale.set(maxDim/100, maxDim/100, maxDim/100);
-
-            scene.add(currentMesh);
-
-            // Update UI
-            document.getElementById('val-x').textContent = size.x.toFixed(2) + ' mm';
-            document.getElementById('val-y').textContent = size.y.toFixed(2) + ' mm';
-            document.getElementById('val-z').textContent = size.z.toFixed(2) + ' mm';
-            sidePanelUI.classList.remove('hidden');
-
-        } catch (err) {
-            alert('解析失败，请确保您上传的是标准的纯净可读 STL 格式图纸。' + err);
-        } finally {
-            loaderUI.classList.add('hidden');
+        } else {
+            alert('不支持的文件格式！目前仅支持 .stl 和 .stp/.step');
         }
-    };
-    reader.readAsArrayBuffer(file);
+    } catch(e) {
+        alert("模型加载失败：" + e.message);
+        console.error(e);
+    } finally {
+        loaderUI.classList.add('hidden');
+    }
+    
+    // reset input so the exact same file can be uploaded again if needed
+    event.target.value = '';
 });
+
+function handleNewModel(meshObject) {
+    if (currentMesh) {
+        scene.remove(currentMesh);
+        // Clean geometries if it's a mesh or group
+        currentMesh.traverse((child) => {
+            if (child.isMesh) {
+                child.geometry.dispose();
+                child.material.dispose();
+            }
+        });
+        clearMeasurements();
+    }
+
+    currentMesh = meshObject;
+    
+    // In Three.js, Groups don't have bounding boxes directly, calculate from Box3
+    const box = new THREE.Box3().setFromObject(currentMesh);
+    const size = new THREE.Vector3();
+    box.getSize(size);
+    const center = new THREE.Vector3();
+    box.getCenter(center);
+    
+    // Move object to center (0,0,0)
+    currentMesh.position.sub(center);
+    scene.add(currentMesh);
+    
+    // Auto scale / position camera relative to object size
+    const maxDim = Math.max(size.x, size.y, size.z);
+    camera.position.set(maxDim * 1.5, maxDim * 1.5, maxDim * 1.5);
+    camera.lookAt(0, 0, 0);
+    controls.target.set(0, 0, 0);
+    gridHelper.scale.set(maxDim/100, maxDim/100, maxDim/100);
+
+    // Update UI Data
+    document.getElementById('val-x').textContent = size.x.toFixed(2) + ' mm';
+    document.getElementById('val-y').textContent = size.y.toFixed(2) + ' mm';
+    document.getElementById('val-z').textContent = size.z.toFixed(2) + ' mm';
+    sidePanelUI.classList.remove('hidden');
+    
+    // Expand panel automatically when a new model loads
+    panelExpanded = true;
+    panelContent.style.display = 'block';
+    chevron.style.transform = 'rotate(0deg)';
+}
 
 // ---- Raycaster Measurement Tool ----
 let measureMode = false;
@@ -218,14 +336,13 @@ btnMeasure.addEventListener('click', () => {
         btnMeasure.textContent = '完成并退出测量';
         measureTip.classList.add('show');
         renderer.domElement.style.cursor = 'crosshair';
-        controls.enabled = false; // Disable rotate while measuring
+        controls.enabled = false;
     } else {
         btnMeasure.classList.remove('active');
         btnMeasure.textContent = '开启距离测量';
         measureTip.classList.remove('show');
         renderer.domElement.style.cursor = 'default';
         controls.enabled = true;
-        // Reset state if stopped halfway
         clickState = 0;
         if (pointAMesh) {
             measurementNodes.remove(pointAMesh);
@@ -249,52 +366,62 @@ function clearMeasurements() {
 renderer.domElement.addEventListener('pointerdown', (event) => {
     if (!measureMode || !currentMesh) return;
 
-    // Convert mouse position to Normalized Device Coordinates (-1 to +1)
     const rect = renderer.domElement.getBoundingClientRect();
     mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
     mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
 
     raycaster.setFromCamera(mouse, camera);
-    const intersects = raycaster.intersectObject(currentMesh);
+    // Recursively check children because currentMesh could be a Group (for STP)
+    const intersects = raycaster.intersectObject(currentMesh, true);
 
     if (intersects.length > 0) {
         const hitPoint = intersects[0].point;
+        
+        // Responsive marker size based on camera distance to make it perfectly visible
+        const markerScale = camera.position.distanceTo(controls.target) * 0.008;
 
-        const sphereGeo = new THREE.SphereGeometry(camera.position.length() * 0.005, 16, 16);
-        const sphereMat = new THREE.MeshBasicMaterial({ color: 0xff3b30 });
+        const sphereGeo = new THREE.SphereGeometry(markerScale, 32, 32);
+        const sphereMat = new THREE.MeshBasicMaterial({ color: 0x0071e3, depthTest: false }); // Draw over object always
         const marker = new THREE.Mesh(sphereGeo, sphereMat);
+        marker.renderOrder = 999; 
         marker.position.copy(hitPoint);
 
         if (clickState === 0) {
-            // First point matched
             pointA.copy(hitPoint);
             pointAMesh = marker;
             measurementNodes.add(marker);
             clickState = 1;
         } else if (clickState === 1) {
-            // Second point matched
             pointB.copy(hitPoint);
             measurementNodes.add(marker);
 
-            // Draw Line
-            const material = new THREE.LineBasicMaterial({ color: 0xff3b30, linewidth: 3 });
+            const material = new THREE.LineBasicMaterial({ color: 0x0071e3, linewidth: 4, depthTest: false });
             const geometry = new THREE.BufferGeometry().setFromPoints([pointA, pointB]);
             const line = new THREE.Line(geometry, material);
+            line.renderOrder = 998;
             measurementNodes.add(line);
 
-            // Calculate Distance and add Text
+            // Calculate Distance and XYZ Axis Distances
             const distance = pointA.distanceTo(pointB);
+            const dx = Math.abs(pointA.x - pointB.x);
+            const dy = Math.abs(pointA.y - pointB.y);
+            const dz = Math.abs(pointA.z - pointB.z);
             const midPoint = new THREE.Vector3().addVectors(pointA, pointB).multiplyScalar(0.5);
 
             const div = document.createElement('div');
-            div.className = 'measurement-label';
-            div.textContent = distance.toFixed(2) + ' mm';
+            div.className = 'measurement-label multi-line';
+            div.innerHTML = `
+                <div class="main-dist">距离: ${distance.toFixed(2)} mm</div>
+                <div class="sub-dist">X差值: ${dx.toFixed(2)} mm</div>
+                <div class="sub-dist">Y差值: ${dy.toFixed(2)} mm</div>
+                <div class="sub-dist">Z差值: ${dz.toFixed(2)} mm</div>
+            `;
             const label = new CSS2DObject(div);
             label.position.copy(midPoint);
             measurementNodes.add(label);
 
             clickState = 0;
-            pointAMesh = null; // Reset for next line
+            pointAMesh = null; 
             btnClear.classList.remove('hidden');
         }
     }
