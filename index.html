@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <!-- Prevents scaling on mobile, enforcing app-like feel -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
+    <title>Pro STL Viewer (Web 3D)</title>
+    <link rel="stylesheet" href="style.css">
+    
+    <!-- ES Module Import Map for Three.js (No NPM required, loads from fast CDN) -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+</head>
+<body>
+    <!-- 3D Graphics Canvas Area -->
+    <div id="canvas-container"></div>
+    <!-- CSS2D Object Area for floating text elements in 3D -->
+    <div id="css2d-container"></div>
+
+    <!-- Apple-style Glassmorphism UI Overlay -->
+    <div class="ui-overlay">
+        <div class="top-nav glass-card">
+            <h2>3D Model Viewer</h2>
+            <label for="file-upload" class="btn-primary">
+                + 选择 STL 图纸
+            </label>
+            <input id="file-upload" type="file" accept=".stl" style="display: none;" />
+        </div>
+
+        <div id="side-panel" class="side-panel glass-card hidden">
+            <h3>📐 尺寸与边界 (Bounding Box)</h3>
+            <div class="info-row">
+                <span class="label">长度 (X):</span>
+                <span id="val-x" class="value">- mm</span>
+            </div>
+            <div class="info-row">
+                <span class="label">宽度 (Y):</span>
+                <span id="val-y" class="value">- mm</span>
+            </div>
+            <div class="info-row">
+                <span class="label">高度 (Z):</span>
+                <span id="val-z" class="value">- mm</span>
+            </div>
+
+            <div class="divider"></div>
+
+            <h3>📏 精确测量 (Raycast)</h3>
+            <button id="btn-measure" class="btn-secondary">开启距离测量</button>
+            <p id="measure-tip" class="tip-text">请在模型表面任意点击两点</p>
+            <button id="btn-clear" class="btn-text hidden">清除测量线</button>
+        </div>
+    </div>
+
+    <!-- Fullscreen Loading Spinner -->
+    <div id="loader" class="loader-bg hidden">
+        <div class="spinner"></div>
+        <p>正在极速渲染网格面片...</p>
+    </div>
+
+    <!-- Application Logic -->
+    <script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { STLLoader } from 'three/addons/loaders/STLLoader.js';
+import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
+
+// ---- Environment & Core Setup ----
+const container = document.getElementById('canvas-container');
+const css2dContainer = document.getElementById('css2d-container');
+const loaderUI = document.getElementById('loader');
+const sidePanelUI = document.getElementById('side-panel');
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xf5f5f7); // Apple grey
+
+const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 1, 10000);
+camera.position.set(200, 200, 200);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(window.devicePixelRatio);
+renderer.setSize(window.innerWidth, window.innerHeight);
+container.appendChild(renderer.domElement);
+
+const labelRenderer = new CSS2DRenderer();
+labelRenderer.setSize(window.innerWidth, window.innerHeight);
+labelRenderer.domElement.style.position = 'absolute';
+labelRenderer.domElement.style.top = '0px';
+labelRenderer.domElement.style.pointerEvents = 'none'; // Critical for clicking through to 3D mesh
+css2dContainer.appendChild(labelRenderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.05;
+
+// Premium Lighting Setup
+const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.8);
+hemiLight.position.set(0, 200, 0);
+scene.add(hemiLight);
+
+const dirLight = new THREE.DirectionalLight(0xffffff, 0.5);
+dirLight.position.set(100, 100, 50);
+scene.add(dirLight);
+
+// ---- Grid & Object State ----
+let currentMesh = null;
+const measurementNodes = new THREE.Group();
+scene.add(measurementNodes);
+
+const gridHelper = new THREE.GridHelper(500, 50, 0x0071e3, 0xd0d0d0);
+gridHelper.position.y = -0.1;
+scene.add(gridHelper);
+
+// Handle Resize
+window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    labelRenderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// Render Loop
+function animate() {
+    requestAnimationFrame(animate);
+    controls.update();
+    renderer.render(scene, camera);
+    labelRenderer.render(scene, camera);
+}
+animate();
+
+// ---- STL File Loading Logic ----
+document.getElementById('file-upload').addEventListener('change', (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    // Show loading
+    loaderUI.classList.remove('hidden');
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const arrayBuffer = e.target.result;
+        try {
+            const loader = new STLLoader();
+            const geometry = loader.parse(arrayBuffer);
+            
+            // Clean up previous model
+            if (currentMesh) {
+                scene.remove(currentMesh);
+                currentMesh.geometry.dispose();
+                currentMesh.material.dispose();
+                clearMeasurements();
+            }
+
+            // Material: Apple Minimalist Style (Matte White/Grey)
+            const material = new THREE.MeshStandardMaterial({ 
+                color: 0xffffff, 
+                roughness: 0.5,
+                metalness: 0.1,
+                side: THREE.DoubleSide
+            });
+
+            currentMesh = new THREE.Mesh(geometry, material);
+            
+            // Center geometry and update math values
+            geometry.center();
+            geometry.computeBoundingBox();
+            const box = geometry.boundingBox;
+            const size = new THREE.Vector3();
+            box.getSize(size);
+            
+            // Auto scale / position camera relative to object size
+            const maxDim = Math.max(size.x, size.y, size.z);
+            camera.position.set(maxDim * 1.5, maxDim * 1.5, maxDim * 1.5);
+            camera.lookAt(0, 0, 0);
+            controls.target.set(0, 0, 0);
+            gridHelper.scale.set(maxDim/100, maxDim/100, maxDim/100);
+
+            scene.add(currentMesh);
+
+            // Update UI
+            document.getElementById('val-x').textContent = size.x.toFixed(2) + ' mm';
+            document.getElementById('val-y').textContent = size.y.toFixed(2) + ' mm';
+            document.getElementById('val-z').textContent = size.z.toFixed(2) + ' mm';
+            sidePanelUI.classList.remove('hidden');
+
+        } catch (err) {
+            alert('解析失败，请确保您上传的是标准的纯净可读 STL 格式图纸。' + err);
+        } finally {
+            loaderUI.classList.add('hidden');
+        }
+    };
+    reader.readAsArrayBuffer(file);
+});
+
+// ---- Raycaster Measurement Tool ----
+let measureMode = false;
+let clickState = 0; // 0: no point, 1: point A set
+let pointA = new THREE.Vector3();
+let pointB = new THREE.Vector3();
+let pointAMesh = null;
+
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+
+const btnMeasure = document.getElementById('btn-measure');
+const measureTip = document.getElementById('measure-tip');
+const btnClear = document.getElementById('btn-clear');
+
+btnMeasure.addEventListener('click', () => {
+    measureMode = !measureMode;
+    if (measureMode) {
+        btnMeasure.classList.add('active');
+        btnMeasure.textContent = '完成并退出测量';
+        measureTip.classList.add('show');
+        renderer.domElement.style.cursor = 'crosshair';
+        controls.enabled = false; // Disable rotate while measuring
+    } else {
+        btnMeasure.classList.remove('active');
+        btnMeasure.textContent = '开启距离测量';
+        measureTip.classList.remove('show');
+        renderer.domElement.style.cursor = 'default';
+        controls.enabled = true;
+        // Reset state if stopped halfway
+        clickState = 0;
+        if (pointAMesh) {
+            measurementNodes.remove(pointAMesh);
+            pointAMesh = null;
+        }
+    }
+});
+
+btnClear.addEventListener('click', clearMeasurements);
+
+function clearMeasurements() {
+    while(measurementNodes.children.length > 0){ 
+        const child = measurementNodes.children[0];
+        measurementNodes.remove(child); 
+    }
+    clickState = 0;
+    btnClear.classList.add('hidden');
+}
+
+// Support Pointer events (Mouse / Touch)
+renderer.domElement.addEventListener('pointerdown', (event) => {
+    if (!measureMode || !currentMesh) return;
+
+    // Convert mouse position to Normalized Device Coordinates (-1 to +1)
+    const rect = renderer.domElement.getBoundingClientRect();
+    mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+    raycaster.setFromCamera(mouse, camera);
+    const intersects = raycaster.intersectObject(currentMesh);
+
+    if (intersects.length > 0) {
+        const hitPoint = intersects[0].point;
+
+        const sphereGeo = new THREE.SphereGeometry(camera.position.length() * 0.005, 16, 16);
+        const sphereMat = new THREE.MeshBasicMaterial({ color: 0xff3b30 });
+        const marker = new THREE.Mesh(sphereGeo, sphereMat);
+        marker.position.copy(hitPoint);
+
+        if (clickState === 0) {
+            // First point matched
+            pointA.copy(hitPoint);
+            pointAMesh = marker;
+            measurementNodes.add(marker);
+            clickState = 1;
+        } else if (clickState === 1) {
+            // Second point matched
+            pointB.copy(hitPoint);
+            measurementNodes.add(marker);
+
+            // Draw Line
+            const material = new THREE.LineBasicMaterial({ color: 0xff3b30, linewidth: 3 });
+            const geometry = new THREE.BufferGeometry().setFromPoints([pointA, pointB]);
+            const line = new THREE.Line(geometry, material);
+            measurementNodes.add(line);
+
+            // Calculate Distance and add Text
+            const distance = pointA.distanceTo(pointB);
+            const midPoint = new THREE.Vector3().addVectors(pointA, pointB).multiplyScalar(0.5);
+
+            const div = document.createElement('div');
+            div.className = 'measurement-label';
+            div.textContent = distance.toFixed(2) + ' mm';
+            const label = new CSS2DObject(div);
+            label.position.copy(midPoint);
+            measurementNodes.add(label);
+
+            clickState = 0;
+            pointAMesh = null; // Reset for next line
+            btnClear.classList.remove('hidden');
+        }
+    }
+});
+    </script>
+</body>
+</html>

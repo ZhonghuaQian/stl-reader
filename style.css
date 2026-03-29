@@ -1,0 +1,191 @@
+/* General Styles & Apple/Minimalist Typography */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+
+:root {
+    --glass-bg: rgba(255, 255, 255, 0.75);
+    --glass-border: rgba(255, 255, 255, 0.4);
+    --text-primary: #1d1d1f;
+    --text-secondary: #86868b;
+    --apple-blue: #0071e3;
+    --apple-blue-hover: #0077ED;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: var(--text-primary);
+    overflow: hidden; /* Prevent scrolling */
+    background-color: #f5f5f7; /* Soft grey background for 3D perspective */
+}
+
+/* 3D Container */
+#canvas-container, #css2d-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 1;
+}
+
+#css2d-container {
+    z-index: 2;
+    pointer-events: none; /* Let clicks pass through to the 3D canvas */
+}
+
+/* Glassmorphism Helper */
+.glass-card {
+    background: var(--glass-bg);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid var(--glass-border);
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+    border-radius: 16px;
+}
+
+/* UI Structure */
+.ui-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 10;
+    pointer-events: none; /* Only cards inside should intercept clicks */
+}
+
+.top-nav {
+    position: absolute;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 90%;
+    max-width: 600px;
+    padding: 16px 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    pointer-events: auto;
+}
+
+.top-nav h2 {
+    font-size: 1.2rem;
+    font-weight: 600;
+}
+
+.side-panel {
+    position: absolute;
+    bottom: 30px;
+    left: 20px;
+    width: calc(100% - 40px);
+    max-width: 320px;
+    padding: 24px;
+    pointer-events: auto;
+    transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.side-panel.hidden {
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(20px);
+}
+
+.side-panel h3 {
+    font-size: 0.95rem;
+    font-weight: 600;
+    margin-bottom: 16px;
+    color: #1d1d1f;
+}
+
+.info-row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 8px;
+    font-size: 0.9rem;
+}
+
+.info-row .label { color: var(--text-secondary); }
+.info-row .value { font-weight: 500; font-family: monospace; font-size: 1rem; }
+
+.divider {
+    height: 1px;
+    background: rgba(0,0,0,0.1);
+    margin: 20px 0;
+}
+
+/* Buttons */
+.btn-primary {
+    background-color: var(--apple-blue);
+    color: white;
+    padding: 10px 18px;
+    border-radius: 20px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.2s;
+    border: none;
+    outline: none;
+}
+.btn-primary:active { background-color: var(--apple-blue-hover); transform: scale(0.98); }
+
+.btn-secondary {
+    background-color: rgba(0,0,0,0.05);
+    color: var(--text-primary);
+    padding: 10px 16px;
+    border-radius: 12px;
+    font-size: 0.9rem;
+    cursor: pointer;
+    border: none;
+    width: 100%;
+    font-weight: 500;
+    transition: background 0.2s;
+}
+.btn-secondary.active {
+    background-color: var(--text-primary);
+    color: white;
+}
+.btn-text {
+    background: none; border: none; font-size: 0.85rem; color: #ff3b30; cursor: pointer; text-decoration: underline; margin-top: 10px; width:100%; text-align:center;
+}
+.btn-text.hidden { display: none; }
+
+.tip-text { margin-top: 12px; font-size: 0.8rem; color: var(--text-secondary); text-align: center; display: none; }
+.tip-text.show { display: block; }
+
+/* CSS2D Label styles rendering IN 3D SPACE */
+.measurement-label {
+    background: rgba(0,0,0,0.8);
+    color: #fff;
+    padding: 4px 10px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: bold;
+    font-family: monospace;
+    pointer-events: none;
+    white-space: nowrap;
+    transform: translate(-50%, -50%); /* Center the tag */
+}
+
+/* Loader */
+.loader-bg {
+    position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+    background: rgba(255,255,255,0.8);
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    z-index: 999; display: flex; flex-direction: column; justify-content: center; align-items: center;
+    transition: opacity 0.3s;
+}
+.loader-bg.hidden { opacity: 0; pointer-events: none; }
+.spinner {
+    width: 40px; height: 40px;
+    border: 4px solid rgba(0,113,227,0.2);
+    border-top: 4px solid var(--apple-blue);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-bottom: 16px;
+}
+@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
